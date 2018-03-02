@@ -1,33 +1,54 @@
 #!/usr/bin/python3
 
-import webapp
+import socket
 import calculadora
 
+mySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+mySocket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+mySocket.bind(('localhost', 1234))
+mySocket.listen(5)
 
-class servidor_sumador(webapp.webApp):
-    usage = "Usage: hostname:port/operand1/function/operand2"
+ok_html = ("HTTP/1.1 200 OK\r\n\r\n" +
+        "<html><head><meta charset='utf-8'><h1>X-Serv-14.5-Sumador-Simple" +
+        "</h1></head><body><p>CALC</p></body></html>\r\n")
 
-    def parse(self, request):
-        input = str(request).split()[1].split('/')[1:]
+favicon_html = ("HTTP/1.1 404 Not Found\r\n\r\n" +
+                "<html><body><p>404 Not Found</p></body></html>\r\n")
+
+usage = "Usage: localhost:1234/operand1/function/operand2"
+
+try:
+    while True:
+        print('Waiting for connections')
+        (recvSocket, address) = mySocket.accept()
+        print('Request received:')
+        Request = recvSocket.recv(2048).decode('utf-8')
+        print(Request)
+        # ---------
+        
+        input = Request.split()[1].split('/')[1:]
         print(input)
-        return input
 
-    def process(self, parsedRequest):
-        if '' in parsedRequest:
-            output = self.usage
+        if 'favicon.ico' in input:
+            print("404")
+            recvSocket.send(favicon_html.encode('utf-8'))
+            recvSocket.close()
+            continue
+
+        if '' in input:
+            output = usage
         else:
             try:
-                output = calculadora.calculator(parsedRequest[1],
-                                                parsedRequest[0],
-                                                parsedRequest[2])
+                output = calculadora.calculator(input[1], input[0], input[2])
             except IndexError:
-                output = self.usage
+                output = usage
         print(output)
 
-        return ("200 OK", "<html><head><meta charset='utf-8'>"
-                "<h1>Calculadora webApp</h1></head>"
-                "<body><p>" + str(output) + "</p></body></html>\r\n")
-
-
-if __name__ == "__main__":
-    testWebApp = servidor_sumador("localhost", 1234)
+        print('Answering back...')
+        response = ok_html.replace('CALC', output)
+        print(response)
+        recvSocket.send(response.encode('utf-8'))
+        recvSocket.close()
+except KeyboardInterrupt:
+    print("Closing binded socket")
+    mySocket.close()
